@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Impostor por WhatsApp</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+    :root {
+      --bg: radial-gradient(120% 120% at 20% 20%, #0c172c 0%, #09111f 40%, #050b15 85%);
+      --panel: rgba(255, 255, 255, 0.06);
+      --panel-strong: rgba(255, 255, 255, 0.12);
+      --text: #e9f1ff;
+      --muted: #9fb3d9;
+      --accent: #5ae0a3;
+      --accent-2: #ff9f66;
+      --error: #ff6b6b;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+
+    .shell {
+      width: min(1100px, 100%);
+      background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(10px);
+    }
+
+    header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    header h1 { margin: 0; font-size: 24px; letter-spacing: 0.4px; }
+    header p { margin: 0; color: var(--muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    label { font-weight: 600; display: block; margin-bottom: 6px; }
+
+    select, input[type="tel"], input[type="number"], textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text);
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 15px;
+      transition: border 0.2s, outline 0.2s;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      outline: 2px solid var(--accent);
+      border-color: var(--accent);
+    }
+
+    .numbers {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .number-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    button, .ghost-button {
+      appearance: none;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-weight: 700;
+      letter-spacing: 0.1px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s, border 0.2s;
+      color: #0c172c;
+    }
+
+    button.primary { background: linear-gradient(135deg, #5ae0a3, #31c189); }
+    button.secondary { background: linear-gradient(135deg, #ffb686, #ff9f66); color: #0b0f19; }
+    .ghost-button { background: transparent; border: 1px dashed rgba(255,255,255,0.25); color: var(--text); }
+
+    button:hover, .ghost-button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    button:active, .ghost-button:active { transform: translateY(0); }
+
+    .inline-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .results {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .result-card {
+      background: var(--panel-strong);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .result-card h4 { margin: 0 0 6px; }
+    .result-card p { margin: 4px 0; color: var(--muted); font-size: 14px; }
+
+    .badge { padding: 4px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .badge.impostor { background: rgba(255,107,107,0.16); color: #ffb1b1; }
+    .badge.civil { background: rgba(90,224,163,0.16); color: #bcffe0; }
+
+    .chip {
+      display: inline-block;
+      padding: 6px 8px;
+      margin: 4px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .error { color: var(--error); margin-top: 6px; font-weight: 600; }
+
+    @media (max-width: 640px) {
+      header { flex-direction: column; align-items: flex-start; }
+      .number-row { grid-template-columns: 1fr; }
+      button, .ghost-button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Juego del Impostor · WhatsApp</h1>
+        <p>Ingresa números de Ecuador (+593), elige una temática y reparte la palabra secreta. Los impostores recibirán «IMPOSTOR».</p>
+      </div>
+      <div class="pill">Mínimo 5 jugadores · Soporta varios impostores</div>
+    </header>
+
+    <div class="grid">
+      <div class="panel">
+        <label for="theme">Temática</label>
+        <select id="theme"></select>
+        <div id="themeMeta" style="margin-top:8px; color: var(--muted); font-size: 14px;"></div>
+        <div id="themeWords" style="margin-top:6px;"></div>
+      </div>
+
+      <div class="panel">
+        <label for="impostors">Número de impostores</label>
+        <input id="impostors" type="number" min="1" value="1" />
+        <p style="color: var(--muted); margin: 6px 0 0; font-size: 14px;">Debes tener al menos la misma cantidad de jugadores que impostores + 1.</p>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap: wrap;">
+        <label style="margin:0;">Jugadores (número WhatsApp Ecuador)</label>
+        <div class="inline-actions">
+          <button class="secondary" id="addPlayer">+ Agregar</button>
+          <button class="ghost-button" id="fillSample">Llenar ejemplo</button>
+        </div>
+      </div>
+      <div class="numbers" id="numbers"></div>
+      <div id="numberError" class="error" style="display:none;"></div>
+    </div>
+
+    <div class="inline-actions" style="margin-top:14px;">
+      <button class="primary" id="generate">Asignar palabras</button>
+      <button class="ghost-button" id="clearResults">Limpiar resultados</button>
+    </div>
+
+    <div id="results" class="results"></div>
+  </div>
+
+  <script>
+    const dataset = [
+      { name: 'Animales', description: 'Criaturas de granja, jungla y mar', words: ['perro', 'gato', 'loro', 'canguro', 'ballena', 'tiburón', 'rinoceronte', 'pingüino', 'alpaca', 'iguana', 'mapache', 'zorro'] },
+      { name: 'Comida', description: 'Platos y cravings', words: ['ceviche', 'cuy', 'encebollado', 'bolón', 'hamburguesa', 'pizza', 'sushi', 'taco', 'arepa', 'lasagna', 'helado', 'ramen'] },
+      { name: 'Películas', description: 'Títulos populares y clásicos', words: ['avatar', 'matrix', 'inception', 'coco', 'gladiador', 'top gun', 'frozen', 'titanic', 'joker', 'interestelar', 'parasite', 'barbie'] },
+      { name: 'Música', description: 'Géneros y bandas', words: ['rock', 'reggaetón', 'bachata', 'salsa', 'merengue', 'trap', 'indie', 'cumbia', 'reggae', 'metal', 'punk', 'bossa nova'] },
+      { name: 'Tecnología', description: 'Cosas que usas todos los días', words: ['smartphone', 'laptop', 'drone', 'wifi', 'bluetooth', 'impresora', 'auriculares', 'teclado', 'monitor', 'usb', 'gps', 'robot'] },
+      { name: 'Ciudades', description: 'Destinos conocidos', words: ['quito', 'guayaquil', 'cuenca', 'manta', 'bogotá', 'lima', 'buenos aires', 'parís', 'londres', 'roma', 'tokio', 'sídney'] },
+      { name: 'Deportes', description: 'Para competir o mirar', words: ['fútbol', 'básquet', 'voleibol', 'tenis', 'surf', 'boxeo', 'ciclismo', 'karate', 'golf', 'running', 'rugby', 'natación'] },
+      { name: 'Videojuegos', description: 'Clásicos y modernos', words: ['minecraft', 'fortnite', 'valorant', 'counter strike', 'mario kart', 'zelda', 'pokemon', 'gta', 'fifa', 'league of legends', 'apex', 'overwatch'] }
+    ];
+
+    const numbersBox = document.getElementById('numbers');
+    const themeSelect = document.getElementById('theme');
+    const themeMeta = document.getElementById('themeMeta');
+    const themeWords = document.getElementById('themeWords');
+    const impostorsInput = document.getElementById('impostors');
+    const resultsBox = document.getElementById('results');
+    const numberError = document.getElementById('numberError');
+
+    function init() {
+      dataset.forEach((t, idx) => {
+        const option = document.createElement('option');
+        option.value = idx;
+        option.textContent = `${t.name}`;
+        themeSelect.appendChild(option);
+      });
+      renderThemeMeta(0);
+      for (let i = 0; i < 5; i++) addPlayerRow();
+    }
+
+    function renderThemeMeta(index) {
+      const t = dataset[index];
+      themeMeta.textContent = `${t.description} · ${t.words.length} palabras disponibles.`;
+      themeWords.innerHTML = t.words.slice(0, 10).map(w => `<span class="chip">${w}</span>`).join('');
+    }
+
+    function addPlayerRow(value = '') {
+      const row = document.createElement('div');
+      row.className = 'number-row';
+      const input = document.createElement('input');
+      input.type = 'tel';
+      input.placeholder = '+593 9xx xxx xxx';
+      input.value = value;
+      input.pattern = '^\\+?593[0-9]{9}$';
+      input.inputMode = 'tel';
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'ghost-button';
+      remove.textContent = 'Quitar';
+      remove.onclick = () => row.remove();
+      row.append(input, remove);
+      numbersBox.appendChild(row);
+    }
+
+    function cleanNumber(raw) {
+      const digits = raw.replace(/[^0-9+]/g, '');
+      if (digits.startsWith('+593')) return digits;
+      if (digits.startsWith('593')) return '+' + digits;
+      if (digits.startsWith('0')) return '+593' + digits.slice(1);
+      return '+593' + digits;
+    }
+
+    function validateNumbers(list) {
+      const unique = new Set();
+      for (const n of list) {
+        if (!/^\+593[0-9]{9}$/.test(n)) return 'Usa formato ecuatoriano válido (+593 y 9 dígitos).';
+        if (unique.has(n)) return 'Hay números repetidos.';
+        unique.add(n);
+      }
+      if (list.length < 5) return 'Necesitas mínimo 5 jugadores.';
+      return '';
+    }
+
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function shuffle(array) {
+      const a = [...array];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function assignWords() {
+      const inputs = Array.from(numbersBox.querySelectorAll('input'));
+      const numbers = inputs.map(i => i.value.trim()).filter(Boolean).map(cleanNumber);
+      const errorMsg = validateNumbers(numbers);
+      if (errorMsg) {
+        numberError.style.display = 'block';
+        numberError.textContent = errorMsg;
+        return;
+      }
+      numberError.style.display = 'none';
+
+      const impostorCount = parseInt(impostorsInput.value, 10) || 1;
+      if (impostorCount >= numbers.length) {
+        numberError.style.display = 'block';
+        numberError.textContent = 'Debe haber al menos un jugador no impostor.';
+        return;
+      }
+
+      const theme = dataset[parseInt(themeSelect.value, 10)];
+      const secretWord = pickRandom(theme.words);
+      const shuffled = shuffle(numbers);
+      const impostors = new Set(shuffled.slice(0, impostorCount));
+
+      const assignments = numbers.map(n => ({
+        number: n,
+        word: impostors.has(n) ? 'IMPOSTOR' : secretWord,
+        isImpostor: impostors.has(n)
+      }));
+
+      renderResults(assignments, secretWord, theme.name);
+    }
+
+    function renderResults(assignments, secretWord, themeName) {
+      resultsBox.innerHTML = '';
+      const header = document.createElement('div');
+      header.style.gridColumn = '1 / -1';
+      header.innerHTML = `<div class="pill">Temática: <strong>${themeName}</strong> · Palabra elegida: <strong>${secretWord}</strong></div>`;
+      resultsBox.appendChild(header);
+
+      assignments.forEach(a => {
+        const card = document.createElement('div');
+        card.className = 'result-card';
+        const title = document.createElement('h4');
+        title.textContent = a.number;
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (a.isImpostor ? 'impostor' : 'civil');
+        badge.textContent = a.isImpostor ? 'Impostor' : 'Civil';
+
+        const message = a.isImpostor ? 'Eres el impostor. Finge que sabes la palabra.' : `Tu palabra es: ${secretWord}`;
+        const detail = document.createElement('p');
+        detail.textContent = a.isImpostor ? 'Mensaje personalizado: impostor.' : 'Mensaje con la palabra secreta.';
+        const messageLine = document.createElement('p');
+        messageLine.textContent = `Mensaje: ${message}`;
+        const actions = document.createElement('div');
+        actions.className = 'inline-actions';
+
+        const send = document.createElement('a');
+        send.textContent = 'Abrir WhatsApp';
+        send.href = `https://wa.me/${a.number.replace('+','')}?text=${encodeURIComponent(message)}`;
+        send.target = '_blank';
+        send.className = 'ghost-button';
+        send.style.textDecoration = 'none';
+
+        const copy = document.createElement('button');
+        copy.className = 'secondary';
+        copy.type = 'button';
+        copy.textContent = 'Copiar mensaje';
+        copy.onclick = async () => {
+          await navigator.clipboard.writeText(message);
+          copy.textContent = 'Copiado';
+          setTimeout(() => (copy.textContent = 'Copiar mensaje'), 1200);
+        };
+
+        actions.append(send, copy);
+        card.append(title, badge, detail, messageLine, actions);
+        resultsBox.appendChild(card);
+      });
+    }
+
+    document.getElementById('addPlayer').onclick = () => addPlayerRow();
+    document.getElementById('fillSample').onclick = () => {
+      numbersBox.innerHTML = '';
+      ['+593987654321', '+593912345678', '+593911223344', '+593999888777', '+593901010101', '+593922233344'].forEach(addPlayerRow);
+    };
+    document.getElementById('generate').onclick = assignWords;
+    document.getElementById('clearResults').onclick = () => (resultsBox.innerHTML = '');
+    themeSelect.onchange = (e) => renderThemeMeta(parseInt(e.target.value, 10));
+
+    init();
+  </script>
+</body>
+</html>

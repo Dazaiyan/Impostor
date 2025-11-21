@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lobby Impostor · WebSocket</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+    :root {
+      --bg: radial-gradient(120% 120% at 20% 20%, #0c172c 0%, #09111f 40%, #050b15 85%);
+      --panel: rgba(255, 255, 255, 0.06);
+      --panel-strong: rgba(255, 255, 255, 0.12);
+      --text: #e9f1ff;
+      --muted: #9fb3d9;
+      --accent: #5ae0a3;
+      --accent-2: #ff9f66;
+      --error: #ff6b6b;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+    .shell {
+      width: min(1100px, 100%);
+      background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(10px);
+    }
+    header { display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+    header h1 { margin: 0; font-size: 24px; letter-spacing: 0.4px; }
+    header p { margin: 0; color: var(--muted); }
+    .panel { background: var(--panel); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    label { font-weight: 600; display: block; margin-bottom: 6px; }
+    input, select { width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: var(--text); font-size: 15px; }
+    input:focus, select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    button {
+      appearance: none; border: none; border-radius: 12px; padding: 12px 14px; font-weight: 700; letter-spacing: 0.1px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s, border 0.2s;
+    }
+    button.primary { background: linear-gradient(135deg, #5ae0a3, #31c189); color: #0c172c; }
+    button.secondary { background: linear-gradient(135deg, #ffb686, #ff9f66); color: #0c172c; }
+    button.ghost { background: transparent; border: 1px dashed rgba(255,255,255,0.25); color: var(--text); }
+    button:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    button:active { transform: translateY(0); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; background: rgba(255,255,255,0.08); color: var(--muted); font-size: 13px; }
+    .list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .player { display: flex; justify-content: space-between; background: var(--panel-strong); border-radius: 10px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.08); }
+    .badge { padding: 4px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .badge.host { background: rgba(90,224,163,0.16); color: #bcffe0; }
+    .status { color: var(--muted); margin-bottom: 10px; }
+    .error { color: var(--error); font-weight: 700; }
+    .notice { margin-top: 10px; color: var(--muted); font-size: 14px; }
+    .order-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .order-chip { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--text); font-weight: 600; font-size: 14px; }
+    .order-chip span { color: var(--muted); margin-right: 6px; }
+    @media (max-width: 640px) { header { flex-direction: column; align-items: flex-start; } }
+
+    /* Overlay de rol (maqueta, colores del lobby + animaciones) */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(120% 120% at 20% 20%, #0c172c 0%, #09111f 40%, #050b15 85%);
+      display: none;
+      z-index: 50;
+    }
+    .overlay.active { display: block; }
+    .overlay-card {
+      position: relative;
+      height: 100%;
+      padding: 32px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      box-shadow: 0 25px 60px rgba(0,0,0,0.45);
+      box-sizing: border-box;
+      animation: overlayFade 0.4s ease;
+    }
+    .back-btn {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      background: transparent;
+      color: #e9f1ff;
+      border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    }
+    .back-btn:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .role-title {
+      margin-top: 70px;
+      font-size: 64px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-align: center;
+      text-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      animation: glowPulse 2s ease-in-out infinite;
+    }
+    .role-title.civil { color: #5ae0a3; }
+    .role-title.impostor { color: #ff6b6b; }
+    .role-word {
+      margin: 6px 0 18px;
+      font-size: 18px;
+      font-weight: 500;
+      color: #e9f1ff;
+      text-align: center;
+    }
+    .section-title {
+      margin: 6px 0;
+      font-size: 18px;
+      font-weight: 800;
+      color: #e9f1ff;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .vote-list {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+      animation: slideUp 0.5s ease;
+    }
+    .vote-card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: stretch;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      backdrop-filter: blur(6px);
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+    .vote-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .vote-card .name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #e9f1ff;
+    }
+    .skull-btn {
+      background: transparent;
+      color: #e9f1ff;
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: 999px;
+      padding: 10px 12px;
+      width: 100%;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      letter-spacing: 0.2px;
+    }
+    .skull-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+    .vote-status {
+      margin-top: auto;
+      font-size: 16px;
+      font-weight: 800;
+      color: #e9f1ff;
+      text-align: center;
+    }
+    .cancel-vote {
+      margin-top: 10px;
+      background: transparent;
+      color: #e9f1ff;
+      border: 1px dashed rgba(255,255,255,0.5);
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .cancel-vote:hover { border-color: var(--accent); color: var(--accent); }
+    .elimination-banner {
+      margin-top: 12px;
+      padding: 20px;
+      border-radius: 16px;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #e9f1ff;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    @keyframes overlayFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes glowPulse {
+      0%,100% { text-shadow: 0 10px 25px rgba(0,0,0,0.35); }
+      50% { text-shadow: 0 10px 35px rgba(90,224,163,0.6); }
+    }
+  </style>
+</head>
+<body>
+    <div id="roleOverlay" class="overlay">
+      <div class="overlay-card">
+        <button id="backBtn" class="back-btn">VOLVER AL LOBBY</button>
+        <div id="roleTitle" class="role-title">Inocente</div>
+        <div id="roleWord" class="role-word">Tu palabra es: ---</div>
+        <div class="section-title">ORDEN PARA HABLAR</div>
+        <div id="voteList" class="vote-list"></div>
+        <div id="voteStatus" class="vote-status"></div>
+        <button id="cancelVoteBtn" class="cancel-vote" style="display:none;">Cancelar mi voto</button>
+        <div id="eliminationBanner" class="elimination-banner" style="display:none;"></div>
+      </div>
+    </div>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Lobby (DazaDev)</h1>
+        <p>No critiquen mierda, lo hice en 2h para poder jugar, asi que no jodan y agradezcan tener un amigo programador <3 </p>
+      </div>
+      <div class="pill" id="connectionStatus">Conectando...</div>
+    </header>
+
+    <div id="auth" class="panel">
+      <div class="grid">
+        <div>
+          <label>Tu nombre</label>
+          <input id="playerName" type="text" placeholder="Escribe tu nombre" />
+        </div>
+        <div>
+          <label>Código de lobby (para unirse)</label>
+          <input id="joinCode" type="text" placeholder="ABC123" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button class="primary" id="createBtn">Crear lobby</button>
+        <button class="ghost" id="joinBtn">Unirme con código</button>
+        <div id="authError" class="error" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div id="lobby" style="display:none;">
+      <div class="panel" style="margin-top:12px;">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <div>
+            <div class="pill" id="lobbyCode">Lobby: -</div>
+            <div class="status">Comparte este link: <span id="shareLink"></span></div>
+          </div>
+          <div class="pill" id="hostTag">Eres host</div>
+        </div>
+        <div class="grid" style="margin-top:12px;">
+          <div>
+            <label>Temática</label>
+            <select id="theme"></select>
+          </div>
+          <div>
+            <label>Impostores</label>
+            <input id="impostors" type="number" min="1" value="1" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <button class="secondary" id="startBtn">Iniciar ronda</button>
+          <button class="ghost" id="refreshBtn">Refrescar estado</button>
+          <div id="lobbyMsg" class="error" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:12px;">
+        <div class="row" style="justify-content:space-between; align-items:center;">
+          <h3 style="margin:0;">Jugadores</h3>
+        </div>
+        <div id="players" class="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      ws: null,
+      playerId: null,
+      lobbyId: null,
+      isHost: false,
+      lobby: null,
+      dataset: [],
+      order: [],
+      votes: {},
+      hasVoted: false,
+      alive: [],
+      isImpostor: false,
+      myVote: null
+    };
+
+    const ui = {
+      status: document.getElementById('connectionStatus'),
+      auth: document.getElementById('auth'),
+      lobby: document.getElementById('lobby'),
+      createBtn: document.getElementById('createBtn'),
+      joinBtn: document.getElementById('joinBtn'),
+      joinCode: document.getElementById('joinCode'),
+      playerName: document.getElementById('playerName'),
+      theme: document.getElementById('theme'),
+      impostors: document.getElementById('impostors'),
+      startBtn: document.getElementById('startBtn'),
+      refreshBtn: document.getElementById('refreshBtn'),
+      players: document.getElementById('players'),
+      lobbyCode: document.getElementById('lobbyCode'),
+      shareLink: document.getElementById('shareLink'),
+      hostTag: document.getElementById('hostTag'),
+      lobbyMsg: document.getElementById('lobbyMsg'),
+      authError: document.getElementById('authError'),
+      roleOverlay: document.getElementById('roleOverlay'),
+      roleTitle: document.getElementById('roleTitle'),
+      roleWord: document.getElementById('roleWord'),
+      backBtn: document.getElementById('backBtn'),
+      voteList: document.getElementById('voteList'),
+      voteStatus: document.getElementById('voteStatus'),
+      eliminationBanner: document.getElementById('eliminationBanner'),
+      cancelVoteBtn: document.getElementById('cancelVoteBtn')
+    };
+
+    function connect() {
+      const loc = window.location;
+      const wsUrl = `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}`;
+      const ws = new WebSocket(wsUrl);
+      state.ws = ws;
+      ws.onopen = () => { ui.status.textContent = 'Conectado'; };
+      ws.onerror = () => { ui.status.textContent = 'Error de conexión'; };
+      ws.onclose = () => { ui.status.textContent = 'Desconectado'; };
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'hello') {
+          state.playerId = msg.playerId;
+          state.dataset = msg.dataset;
+          renderDataset();
+          const urlLobby = new URL(window.location.href).searchParams.get('lobby');
+          if (urlLobby) ui.joinCode.value = urlLobby;
+          return;
+        }
+        if (msg.type === 'lobbyJoined') {
+          state.lobby = msg.lobby;
+          state.lobbyId = msg.lobby.lobbyId;
+          state.isHost = msg.isHost;
+          state.order = [];
+          state.votes = {};
+          state.hasVoted = false;
+          ui.auth.style.display = 'none';
+          ui.lobby.style.display = 'block';
+          ui.lobbyCode.textContent = `Lobby: ${state.lobbyId}`;
+          const link = `${window.location.origin}?lobby=${state.lobbyId}`;
+          ui.shareLink.textContent = link;
+          ui.hostTag.style.display = msg.isHost ? 'inline-flex' : 'none';
+          ui.theme.disabled = !msg.isHost;
+          ui.impostors.disabled = !msg.isHost;
+          ui.startBtn.style.display = msg.isHost ? 'inline-flex' : 'none';
+          ui.refreshBtn.style.display = msg.isHost ? 'inline-flex' : 'inline-flex';
+          renderLobby(msg.lobby);
+          return;
+        }
+        if (msg.type === 'lobbyUpdate') {
+          state.lobby = msg.lobby;
+          renderLobby(msg.lobby);
+          return;
+        }
+        if (msg.type === 'roundStarted') {
+          state.order = msg.order || [];
+          state.alive = msg.alive || state.order.map(o => o.id);
+          state.votes = {};
+          state.hasVoted = false;
+          state.myVote = null;
+          renderVoteList();
+          updateVoteStatus(0, state.alive.length || 0);
+          showElimination(null);
+          return;
+        }
+        if (msg.type === 'roundAssigned') {
+          state.isImpostor = msg.isImpostor;
+          showRoleOverlay(msg.isImpostor, msg.word);
+          return;
+        }
+        if (msg.type === 'voteUpdate') {
+          state.votes = {};
+          (msg.votes || []).forEach(v => { state.votes[v.id] = v.votes; });
+          updateVoteStatus(msg.votedCount || 0, msg.totalVoters || 0);
+          renderVoteList();
+          return;
+        }
+        if (msg.type === 'elimination') {
+          state.alive = msg.aliveIds || state.alive;
+          state.order = msg.order || state.order.filter(o => state.alive.includes(o.id));
+          showElimination(msg);
+          renderVoteList();
+          return;
+        }
+        if (msg.type === 'votingReset') {
+          state.alive = msg.aliveIds || state.alive;
+          state.order = msg.order || state.order;
+          state.votes = {};
+          state.hasVoted = false;
+          state.myVote = null;
+          showElimination(null);
+          renderVoteList();
+          updateVoteStatus(0, state.alive.length || 0);
+          return;
+        }
+        if (msg.type === 'gameEnd') {
+          showGameEnd(msg.result);
+          return;
+        }
+        if (msg.type === 'error') {
+          ui.lobbyMsg.style.display = 'block';
+          ui.lobbyMsg.textContent = msg.message;
+          setTimeout(() => (ui.lobbyMsg.style.display = 'none'), 2000);
+          return;
+        }
+      };
+    }
+
+    function renderDataset() {
+      ui.theme.innerHTML = state.dataset.map((t, idx) => `<option value="${idx}">${t.name} (${t.words})</option>`).join('');
+    }
+
+    function renderPlayers(players, hostId) {
+      ui.players.innerHTML = '';
+      players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'player';
+        const left = document.createElement('div');
+        left.textContent = p.name || 'Jugador';
+        const right = document.createElement('div');
+        right.className = 'badge' + (p.id === hostId ? ' host' : '');
+        right.textContent = p.id === hostId ? 'Host' : 'Listo';
+        row.append(left, right);
+        ui.players.appendChild(row);
+      });
+    }
+
+    function renderLobby(lobby) {
+      renderPlayers(lobby.players, lobby.hostId);
+      ui.theme.value = lobby.settings.themeIndex;
+      ui.impostors.value = lobby.settings.impostors;
+    }
+
+    ui.createBtn.onclick = () => {
+      const name = ui.playerName.value.trim();
+      if (!name) {
+        ui.authError.style.display = 'block';
+        ui.authError.textContent = 'Ingresa tu nombre para crear el lobby.';
+        return;
+      }
+      state.ws.send(JSON.stringify({ type: 'createLobby', name, themeIndex: parseInt(ui.theme.value, 10) || 0, impostors: parseInt(ui.impostors.value, 10) || 1 }));
+    };
+
+    ui.joinBtn.onclick = () => {
+      const code = ui.joinCode.value.trim().toUpperCase();
+      const name = ui.playerName.value.trim();
+      if (!code) {
+        ui.authError.style.display = 'block';
+        ui.authError.textContent = 'Ingresa un código válido';
+        return;
+      }
+      if (!name) {
+        ui.authError.style.display = 'block';
+        ui.authError.textContent = 'Ingresa tu nombre para unirte.';
+        return;
+      }
+      ui.authError.style.display = 'none';
+      state.ws.send(JSON.stringify({ type: 'joinLobby', lobbyId: code, name }));
+    };
+
+    ui.theme.onchange = () => {
+      if (!state.isHost || !state.lobbyId) return;
+      state.ws.send(JSON.stringify({ type: 'updateSettings', lobbyId: state.lobbyId, themeIndex: parseInt(ui.theme.value, 10) }));
+    };
+
+    ui.impostors.onchange = () => {
+      if (!state.isHost || !state.lobbyId) return;
+      const impostors = Math.max(1, parseInt(ui.impostors.value, 10) || 1);
+      ui.impostors.value = impostors;
+      state.ws.send(JSON.stringify({ type: 'updateSettings', lobbyId: state.lobbyId, impostors }));
+    };
+
+    ui.startBtn.onclick = () => {
+      if (!state.isHost || !state.lobbyId) return;
+      state.ws.send(JSON.stringify({ type: 'startGame', lobbyId: state.lobbyId, themeIndex: parseInt(ui.theme.value, 10) || 0, impostors: parseInt(ui.impostors.value, 10) || 1 }));
+    };
+
+    ui.refreshBtn.onclick = () => {
+      if (state.lobby) renderLobby(state.lobby);
+    };
+
+    ui.backBtn.onclick = () => {
+      ui.roleOverlay.classList.remove('active');
+    };
+
+    function showRoleOverlay(isImpostor, message) {
+      ui.roleTitle.textContent = isImpostor ? 'Impostor' : 'Inocente';
+      ui.roleTitle.className = 'role-title ' + (isImpostor ? 'impostor' : 'civil');
+      if (isImpostor) {
+        ui.roleWord.textContent = message;
+      } else {
+        const word = message.replace('Tu palabra es: ', '');
+        ui.roleWord.innerHTML = `Tu palabra es: <strong>${word}</strong>`;
+      }
+      state.hasVoted = false;
+      state.myVote = null;
+      toggleCancelVote(false);
+      renderVoteList();
+      showElimination(null);
+      ui.roleOverlay.classList.add('active');
+    }
+
+    function renderVoteList() {
+      if (!ui.voteList || !state.lobby) return;
+      const aliveSet = new Set(state.alive || []);
+      const order = (state.order || []).filter(o => aliveSet.has(o.id));
+      ui.voteList.innerHTML = order.map((p, idx) => {
+        const disabled = state.hasVoted ? 'disabled' : '';
+        return `<div class="vote-card">
+            <div class="name">#${idx + 1} · ${p.name || 'Jugador'}</div>
+            <button class="skull-btn" data-target="${p.id}" ${disabled}>☠️ Votar</button>
+          </div>`;
+      }).join('');
+      ui.voteList.querySelectorAll('button[data-target]').forEach(btn => {
+        btn.onclick = () => {
+          if (state.hasVoted) return;
+          const target = btn.getAttribute('data-target');
+          state.ws?.send(JSON.stringify({ type: 'vote', lobbyId: state.lobbyId, targetId: target }));
+          state.hasVoted = true;
+          state.myVote = target;
+          toggleCancelVote(true);
+          renderVoteList();
+        };
+      });
+    }
+
+    function showElimination(msg) {
+      if (!ui.eliminationBanner) return;
+      if (!msg) {
+        ui.eliminationBanner.style.display = 'none';
+        return;
+      }
+      ui.eliminationBanner.textContent = `${msg.eliminatedName || 'Jugador'} fue eliminado con ${msg.votes || 0} votos.`;
+      ui.eliminationBanner.style.display = 'block';
+      state.hasVoted = true;
+    }
+
+    function updateVoteStatus(voted, total) {
+      if (!ui.voteStatus) return;
+      ui.voteStatus.textContent = `VOTOS REGISTRADOS: ${voted}/${total}`;
+    }
+
+    function showGameEnd(result) {
+      if (!ui.eliminationBanner) return;
+      const impostorWins = result === 'impostor';
+      const youWin = (impostorWins && state.isImpostor) || (!impostorWins && !state.isImpostor);
+      ui.eliminationBanner.style.display = 'block';
+      ui.eliminationBanner.innerHTML = `<div style="font-size:32px; font-weight:800; text-align:center;">${youWin ? '¡Ganaste!' : 'Perdiste'}</div>`;
+      ui.eliminationBanner.style.background = youWin ? 'rgba(90,224,163,0.16)' : 'rgba(255,107,107,0.12)';
+      ui.eliminationBanner.style.border = youWin ? '1px solid rgba(90,224,163,0.5)' : '1px solid rgba(255,107,107,0.35)';
+      ui.roleOverlay.classList.add('active');
+      state.hasVoted = true;
+    }
+
+    ui.cancelVoteBtn.onclick = () => {
+      if (!state.hasVoted || !state.lobbyId) return;
+      state.ws?.send(JSON.stringify({ type: 'cancelVote', lobbyId: state.lobbyId }));
+      state.hasVoted = false;
+      state.myVote = null;
+      toggleCancelVote(false);
+      renderVoteList();
+    };
+
+    function toggleCancelVote(show) {
+      if (!ui.cancelVoteBtn) return;
+      ui.cancelVoteBtn.style.display = show ? 'inline-flex' : 'none';
+    }
+
+    connect();
+  </script>
+</body>
+</html>
