@@ -1,0 +1,15 @@
+node_modules
+dist
+client/node_modules
+client/dist
+package-lock.json
+client/package-lock.json
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-lock.yaml
+yarn.lock
+*.local
+*.env
+*.env.local
+*.env.*.local
