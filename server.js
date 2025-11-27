@@ -7,57 +7,41 @@ import { WebSocketServer } from 'ws';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const baseDataset = [
-  { name: 'Animales', words: ['perro', 'gato', 'loro', 'canguro', 'ballena', 'tiburón', 'rinoceronte', 'pingüino', 'alpaca', 'iguana', 'mapache', 'zorro'] },
-  { name: 'Comida', words: ['ceviche', 'cuy', 'encebollado', 'bolón', 'hamburguesa', 'pizza', 'sushi', 'taco', 'arepa', 'lasagna', 'helado', 'ramen'] },
-  { name: 'Películas', words: ['avatar', 'matrix', 'inception', 'coco', 'gladiador', 'top gun', 'frozen', 'titanic', 'joker', 'interestelar', 'parasite', 'barbie'] },
-  { name: 'Música', words: ['rock', 'reggaetón', 'bachata', 'salsa', 'merengue', 'trap', 'indie', 'cumbia', 'reggae', 'metal', 'punk', 'bossa nova'] },
-  { name: 'Tecnología', words: ['smartphone', 'laptop', 'drone', 'wifi', 'bluetooth', 'impresora', 'auriculares', 'teclado', 'monitor', 'usb', 'gps', 'robot'] },
-  { name: 'Ciudades', words: ['quito', 'guayaquil', 'cuenca', 'manta', 'bogotá', 'lima', 'buenos aires', 'parís', 'londres', 'roma', 'tokio', 'sídney'] },
-  { name: 'Deportes', words: ['fútbol', 'básquet', 'voleibol', 'tenis', 'surf', 'boxeo', 'ciclismo', 'karate', 'golf', 'running', 'rugby', 'natación'] },
-  { name: 'Videojuegos', words: ['minecraft', 'fortnite', 'valorant', 'counter strike', 'mario kart', 'zelda', 'pokemon', 'gta', 'fifa', 'league of legends', 'apex', 'overwatch'] }
-];
-
-const extraRandomWords = [
-  'leon','tigre','oso','panda','koala','delfin','tortuga','caballo','burro','cordero','cabrita','pato','gallina','gallo','hipopotamo','jirafa',
-  'elefante','hiena','pantera','lince','camello','ñandu','lemur','chimpance','orangutan','gorila','hamster','conejo','huron','erizo','pez globo','piraña',
-  'salmon','trucha','atun','pulpo','calamar','langosta','cangrejo','caracol','abeja','avispa','mariposa','libelula','saltamontes',
-  'hamburguesa','tostada','arequipe','brownie','brownie de chocolate','chocolate','galleta','panqueque','waffle','donut','croissant','bagel','cereal','granola',
-  'ensalada','ensalada cesar','ensalada griega','ensalada de fruta','papa frita','patacones','nachos','guacamole','burrito','quesadilla','arepa reina pepiada',
-  'empanada','tamales','paella','risotto','carbonara','bolognesa','pesto','sopa miso','curry','kebab','falafel','shawarma','hummus','baklava','cheesecake',
-  'maruchan','hot dog','sandwich','wrap','yogurt','smoothie','milkshake',
-  'harry potter','star wars','the avengers','iron man','batman','spiderman','superman','jurassic park','indiana jones','toy story','shrek','cars','up','coco',
-  'encanto','moana','frozen 2','matrix reloaded','el padrino','rocky','creed','top gun maverick','mission impossible','piratas del caribe','mi pobre angelito',
-  'the office','friends','breaking bad','stranger things','game of thrones','the mandalorian','loki','wanda vision',
-  'futbol americano','beisbol','hockey','cricket','badminton','ping pong','ajedrez','esgrima','halterofilia','patinaje','snowboard','ski','parkour','triatlon',
-  'ironman','motocross','formula 1','karting','skate','bmx','taekwondo','judo','muay thai','mma',
-  'google','apple','microsoft','linux','android','iphone','ipad','macbook','chromebook','playstation','xbox','nintendo','switch','steam deck',
-  'chatgpt','gpt','ia','smartwatch','smart tv','streaming','netflix','spotify','youtube','twitch','discord','telegram','whatsapp','instagram','tiktok','snapchat',
-  'cloud','blockchain','bitcoin','criptomoneda','nft','router','modem','servidor','api','frontend','backend','fullstack','javascript','python','java','go',
-  'rust','c++','php','html','css','figma','photoshop','illustrator','premiere','after effects','blender',
-  'paris','londres','berlin','madrid','barcelona','lisboa','roma','tokio','osaka','beijing','shanghai','seul','singapur','dubai','doha',
-  'nueva york','los angeles','san francisco','miami','chicago','toronto','vancouver','mexico','cancun','rio','sao paulo','montevideo','santiago','bogota',
-  'medellin','quito','guayaquil','cuenca','lima','mendoza','buenos aires','rosario','cordoba',
-  'minecraft dungeons','pubg','free fire','halo','gears','call of duty','fall guys','rocket league','stardew valley','hades','among us','clash royale','clash of clans',
-  'brawl stars','candy crush','subway surfers','temple run','angry birds','monopoly','ajedrez 3d',
-  'camiseta','zapatillas','jeans','chaqueta','gorra','bufanda','guantes','calcetines','reloj','mochila','maleta','pasaporte','avion','tren','metro','taxi','uber',
-  'bicicleta','patineta','scooter','moto','auto','camioneta','tractor','barco','yate','velero',
-  'playa','montaña','bosque','desierto','lago','río','cascada','volcan','glaciar','cueva','isla','valle'
-];
+import { baseDataset, extraRandomWords } from './data.js';
 
 const randomWords = [...baseDataset.flatMap(d => d.words), ...extraRandomWords];
 const dataset = [...baseDataset, { name: 'Random', words: randomWords }];
+const staticDirs = [path.join(__dirname, 'client', 'dist'), path.join(__dirname, 'public')];
+
+function findStaticFile(urlPath) {
+  for (const dir of staticDirs) {
+    const candidate = path.join(dir, urlPath);
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+  return null;
+}
 
 const server = http.createServer((req, res) => {
   const parsed = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsed.pathname;
   const urlPath = pathname === '/' ? '/index.html' : pathname; // ignore query strings, serve SPA
-  const filePath = path.join(__dirname, 'public', urlPath);
+
+  let filePath = findStaticFile(urlPath);
+  if (!filePath) {
+    filePath = findStaticFile('/index.html');
+  }
+  if (!filePath) {
+    res.statusCode = 404;
+    res.end('Not found');
+    return;
+  }
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.statusCode = 404;
-      res.end('Not found');
+      res.statusCode = 500;
+      res.end('Error leyendo el archivo');
       return;
     }
     const ext = path.extname(filePath);
@@ -198,7 +182,9 @@ wss.on('connection', (ws) => {
       }
       const impostorCount = Math.max(1, Math.min(msg.impostors ?? lobby.settings.impostors, players.length - 1));
       const theme = dataset[msg.themeIndex ?? lobby.settings.themeIndex] || dataset[0];
-      const secretWord = pickRandom(theme.words);
+      const secretObj = pickRandom(theme.words);
+      const secretWord = secretObj.word;
+      const secretHint = secretObj.hint;
       const pickList = [...players].sort(() => Math.random() - 0.5); // para roles
       const orderList = [...players].sort(() => Math.random() - 0.5); // para orden de hablar
       const impostorIds = new Set(pickList.slice(0, impostorCount).map(p => p.id));
@@ -214,7 +200,16 @@ wss.on('connection', (ws) => {
 
       players.forEach(p => {
         const isImpostor = impostorIds.has(p.id);
-        const message = isImpostor ? 'Eres el impostor. Finge que sabes la palabra.' : `Tu palabra es: ${secretWord}`;
+        let message;
+        if (isImpostor) {
+          if (theme.name === 'Random') {
+            message = `Eres el impostor. Pista: ${secretHint}`;
+          } else {
+            message = 'Eres el impostor. Finge que sabes la palabra.';
+          }
+        } else {
+          message = `Tu palabra es: ${secretWord}`;
+        }
         emitTo(p.id, msg.lobbyId, { type: 'roundAssigned', lobbyId: msg.lobbyId, isImpostor, word: message, theme: theme.name, secretWord });
       });
       broadcast(msg.lobbyId, { type: 'roundStarted', theme: theme.name, impostors: impostorCount, order, alive: order.map(o => o.id) });
